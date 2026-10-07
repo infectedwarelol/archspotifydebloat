@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+debloatDir="${HOME}/.local/share/spotify-debloat"
+
+if [[ "${1:-}" == "--update" ]]; then
+  spotify-launcher --check-update --no-exec
+  "${debloatDir}/apply.sh"
+  exit 0
+fi
+
+"${debloatDir}/apply.sh" || echo "spotify-debloat: patch failed, launching anyway" >&2
+exec spotify-launcher --skip-update "$@"

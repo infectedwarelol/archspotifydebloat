@@ -1,0 +1,8 @@
+[Unit]
+Description=Re-apply Spotify debloat patches
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/sleep 3
+KillMode=process
+ExecStart=%h/.local/share/spotify-debloat/apply.sh

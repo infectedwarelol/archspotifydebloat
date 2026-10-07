@@ -1,0 +1,76 @@
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  will-change: auto !important;
+}
+
+*:not(img):not(svg) {
+  background-image: none !important;
+}
+
+[style*="blur("], [class*="blur"], [class*="Blur"] {
+  filter: none !important;
+}
+
+video,
+.main-nowPlayingView-canvasVisualEnhancement,
+.main-nowPlayingView-coverArtVisualEnhancement,
+.main-nowPlayingView-contextItemVisualEnhancement,
+.main-nowPlayingView-musicVideo,
+.main-nowPlayingView-musicVideoHeader,
+.main-nowPlayingView-gradient,
+.main-nowPlayingView-lyricsGradient,
+.main-trackList-rowImageVideo,
+.main-watchFeed-canvasContainer,
+.main-watchFeed-canvasWrapper,
+.x-music-video,
+.artist-artistOverview-artistShelfRelatedVideos,
+.artist-artistAbout-backgroundImage,
+.main-entityHeader-wavesBackground,
+.lyrics-lyrics-background {
+  display: none !important;
+}
+
+.main-nowPlayingView-aboutArtist,
+.main-nowPlayingView-aboutArtistV2,
+.main-nowPlayingView-artistOnTour,
+.main-nowPlayingView-credits,
+.main-nowPlayingView-merch,
+.main-nowPlayingView-section:has(.main-nowPlayingView-aboutArtistV2),
+.main-nowPlayingView-section:has(.main-nowPlayingView-artistOnTour),
+.main-nowPlayingView-section:has(.main-nowPlayingView-credits),
+.main-nowPlayingView-section:has(.main-nowPlayingView-merch) {
+  display: none !important;
+}
+
+.main-buddyFeed-container,
+.main-buddyFeed-buddyFeed,
+.main-globalNav-buddyFeed,
+.main-topBar-buddyFeed,
+.main-nowPlayingBar-buddyFeedIcon,
+button[aria-label="Friend Activity"] {
+  display: none !important;
+}
+
+.main-topBar-UpgradeButton,
+button[aria-label="Upgrade to Premium"],
+a[href*="spotify.com/premium"],
+[data-testid="upgrade-button"] {
+  display: none !important;
+}
+
+[data-encore-id="card"]:hover,
+[role="row"]:hover > div,
+.main-nowPlayingView-queueItem:hover {
+  background-color: transparent !important;
+}
+
+.lyrics-lyrics-contentWrapper,
+.main-nowPlayingView-lyricsContent {
+  background-color: #000 !important;
+}

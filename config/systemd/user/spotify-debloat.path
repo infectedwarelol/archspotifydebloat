@@ -1,0 +1,9 @@
+[Unit]
+Description=Re-apply Spotify debloat patches after client updates
+
+[Path]
+PathChanged=%h/.local/share/spotify-launcher/state.json
+Unit=spotify-debloat.service
+
+[Install]
+WantedBy=default.target

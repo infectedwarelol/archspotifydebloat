@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+recursive=''
+archive=''
+sources=()
+for argument in "$@"; do
+  case "${argument}" in
+    -qq|-q) ;;
+    -r) recursive='true' ;;
+    -*) echo "zip shim: unsupported option ${argument}" >&2; exit 2 ;;
+    *) if [[ -z "${archive}" ]]; then archive="${argument}"; else sources+=("${argument}"); fi ;;
+  esac
+done
+[[ "${recursive}" && -n "${archive}" && ${#sources[@]} -gt 0 ]] || { echo "zip shim: usage zip -r ARCHIVE PATH..." >&2; exit 2; }
+exec python3 -m zipfile -c "${archive}" "${sources[@]}"
