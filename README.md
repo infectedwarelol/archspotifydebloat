@@ -1,93 +1,167 @@
 # ArchSpotifyDebloat
 
+This is how I strip Spotify down to a lightweight music player on Arch Linux with Hyprland. I wanted something closer to Spotifast: no looping videos, no ads, no animations, and no idle CPU burn on a 4-thread i5-6500.
 
+It patches the official client from `spotify-launcher` with SpotX-Bash and Spicetify. It also runs Spotify natively on Wayland with software rendering, so it stops waking up the NVIDIA card. Every change can be undone with one script.
 
-## Getting started
+## Results
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+I measured on an i5-6500 (4c/4t) with an RTX 3050, Hyprland 0.56, and Spotify 1.2.96.518, with the client idle and paused. The numbers are medians of 3 runs (2 for F and G). CPU is the sum over all Spotify processes, in percent of one core, sampled over 60 seconds. RAM is PSS, so shared memory between processes isn't counted twice.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+| Setup | Processes | Idle CPU | CPU spent in first 40 s | RAM (PSS) | Uses the 3050 |
+|---|---|---|---|---|---|
+| Stock client, Xwayland | 9 | 14.7 % | 18.6 s | 898 MiB | yes |
+| Patched, no flags | 9 | 4.78 % | 15.0 s | 848 MiB | yes |
+| A: Wayland, GPU on | 9 | 0.40 % | 14.7 s | 907 MiB | yes |
+| B: Wayland, `--disable-gpu` | 9 | 0.32 % | 12.7 s | 851 MiB | no |
+| D: B + `--in-process-gpu` | 8 | 0.35 % | 12.7 s | 848 MiB | no |
+| E: A + `--in-process-gpu` | 8 | 0.38 % | 14.7 s | 877 MiB | yes |
+| **F: D + `--enable-low-end-device-mode`** | **8** | **0.31 %** | **13.7 s** | **828 MiB** | **no** |
+| G: D + `--no-zygote` | 6 | 0.98 % | 12.9 s | 872 MiB | no |
 
-## Add your files
+F is what ships. B, D and F are basically tied on CPU, so F wins on memory and because it leaves the dGPU alone. The window shows up in under a second in every variant.
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+The raw numbers are in `results.jsonl`. `results-run1-corrupt-cache.jsonl` is a first pass that got thrown out (see the gotchas below).
 
+## What gets changed
+
+**Client patches** (`apply.sh`)
+- SpotX-Bash runs with `-e -h -l -p`. That removes ads and sponsored stuff and patches out logging calls. It also skips the experimental flags (some of them turn video features on), hides non-music shelves on Home, and makes the lyrics background black.
+- Spicetify runs on top with a CSS-only theme called `Lite`. It has no extensions, `expose_apis` is off, and Sentry and UI logging are disabled.
+
+**Theme** (`config/spicetify/Themes/Lite/user.css`)
+- Kills every CSS animation and transition, plus smooth scrolling, backdrop filters, blur, shadows, gradients and hover backgrounds.
+- Hides all `<video>` elements, Canvas, music videos and the Now Playing extras (artist bio, tour dates, credits, merch).
+- Hides Friend Activity and the upgrade buttons.
+
+**Launch flags** (`config/spotify-launcher.conf`)
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/infectedware/archspotifydebloat.git
-git branch -M main
-git push -uf origin main
+--ozone-platform=wayland --disable-smooth-scrolling
+--disable-features=Translate,OptimizationHints,AutofillServerCommunication
+--renderer-process-limit=1 --disable-background-networking --disk-cache-size=52428800
+--disable-gpu --in-process-gpu --enable-low-end-device-mode
 ```
 
-## Integrate with your tools
+**Spotify prefs**
+- Global `prefs`: `storage.size=1024`.
+- `Users/<id>-user/prefs`: autoplay, crossfade, normalization, automix, desktop notifications and the auto-opening miniplayer are all off. Home page takeovers and promoted songs are hidden.
 
-* [Set up project integrations](https://gitlab.com/infectedware/archspotifydebloat/-/settings/integrations)
+**Hyprland** (`config/hypr/spotify-lite.lua`)
+- A window rule for Spotify only: no blur, no shadow, no animation, and it opens on workspace 9. Your global animation settings stay as they are.
 
-## Collaborate with your team
+**Staying patched**
+- `spotify-lite` is a small wrapper the desktop entry points to. It launches with `--skip-update` so the client version stays pinned, and re-patches first if the client has changed underneath it.
+- A systemd user path unit watches `~/.local/share/spotify-launcher/state.json`. If something else updates the client (say you ran plain `spotify-launcher`), the patches get reapplied and Spotify restarts.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Requirements
 
-## Test and Deploy
+- Arch Linux with `spotify-launcher` (the official repo package, not the AUR `spotify` one)
+- Hyprland with the Lua config (0.56+)
+- `perl`, `unzip`, `python3`, `curl`, `dbus` (for `dbus-send`)
+- `zip` is optional. If it's missing, `bin/zip` stands in for it using Python's `zipfile` module.
 
-Use the built-in continuous integration in GitLab.
+## Install
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+The scripts expect the repo at `~/.local/share/spotify-debloat`.
 
-***
+```bash
+git clone https://gitlab.com/infectedware/archspotifydebloat.git ~/.local/share/spotify-debloat
+```
 
-# Editing this README
+Run `spotify-launcher` once, log in, then quit Spotify.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Back up what's about to be touched. `revert.sh` reads the backup location from `backup-path`.
 
-## Suggestions for a good README
+```bash
+cd ~/.local/share/spotify-debloat
+backup="$PWD/backup-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup" && chmod 700 "$backup"
+tar -C ~/.local/share/spotify-launcher -cf "$backup/spotify-launcher-install.tar" install state.json
+tar -C ~/.config -cf "$backup/config-spotify.tar" spotify
+cp ~/.config/hypr/hyprland.lua "$backup/"
+chmod 600 "$backup"/*
+echo "$backup" > backup-path
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Install Spicetify and copy the configs into place:
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+mkdir -p ~/.spicetify
+curl -fsSL https://github.com/spicetify/cli/releases/download/v2.45.3/spicetify-2.45.3-linux-amd64.tar.gz | tar -xz -C ~/.spicetify
+mkdir -p ~/.config/spicetify/Themes/Lite ~/.config/systemd/user ~/.local/share/applications
+cp config/spicetify/config-xpui.ini ~/.config/spicetify/
+cp config/spicetify/Themes/Lite/user.css ~/.config/spicetify/Themes/Lite/
+cp config/spotify-launcher.conf ~/.config/
+cp config/systemd/user/spotify-debloat.* ~/.config/systemd/user/
+sed "s|/home/jules|$HOME|" config/applications/spotify-launcher.desktop > ~/.local/share/applications/spotify-launcher.desktop
+cat config/hypr/spotify-lite.lua >> ~/.config/hypr/hyprland.lua
+hyprctl reload
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Fix `prefs_path` in `~/.config/spicetify/config-xpui.ini` if your home isn't `/home/jules`.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Patch the client and turn on the auto re-patch:
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+```bash
+./apply.sh full
+systemctl --user daemon-reload
+systemctl --user enable --now spotify-debloat.path
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+The prefs changes listed above are a few lines in `~/.config/spotify/prefs` and `~/.config/spotify/Users/<id>-user/prefs`. Make those edits with Spotify closed, because it rewrites the files when it quits.
+
+Last step, in the Spotify UI: go to Settings > Videos and Canvas and switch off Canvas, music videos and other videos. Those settings live on your account, not in a local file.
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- Start Spotify from your app menu as usual, or run `~/.local/share/spotify-debloat/spotify-lite`.
+- To update Spotify on purpose: `spotify-lite --update`. It downloads the new client and patches it right away.
+- After editing `user.css`: `./apply.sh css`
+- Want the flags on the GPU instead? Edit `~/.config/spotify-launcher.conf`.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Revert
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```bash
+~/.local/share/spotify-debloat/revert.sh
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+It asks once, then:
+- stops Spotify
+- restores the original client, `state.json` and `~/.config/spotify` from the backup
+- removes the systemd units, launcher config, desktop override, Spicetify and the Hyprland rule
+- reloads Hyprland
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+The backups stay where they are, so you can delete them yourself once you're happy.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Benchmarking
 
-## License
-For open source projects, say how it is licensed.
+```bash
+./bench.py my-label -- --some-flag --another-flag
+./variants.sh
+python3 summary.py
+python3 summary.py --raw
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+`bench.py` starts Spotify and waits 40 seconds for it to settle, then samples for 60 seconds. It sums CPU ticks and PSS across every Spotify process and reads per-process GPU usage from `nvidia-smi pmon`. Then it quits Spotify over MPRIS. `variants.sh` runs the main matrix and `refine.sh` runs the low-end and no-zygote variants. Set `SPOTIFY_BINARY` to benchmark a different client build.
+
+## Gotchas I hit
+
+- **`--disable-features=MediaRouter` crashes this CEF build** (Chromium 146) on startup, so it's not in the list.
+- **Don't kill Spotify with `pkill`.** Killing every process at once corrupted `~/.cache/spotify` for me. After that the client hung on a blank shell at 100%+ CPU with a 4 to 5 GB renderer, even unpatched. Deleting the cache fixed it. SIGTERM on the main process doesn't quit it either. All the scripts here close it cleanly over MPRIS instead (`org.mpris.MediaPlayer2.Quit`).
+- **Most playback prefs are per-user.** If you put them in the global `prefs` file, Spotify quietly drops them on the next save. They go in `Users/<id>-user/prefs`.
+- **The patched client runs from an extracted folder.** Spicetify unpacks `Apps/xpui.spa` into `Apps/xpui/` and deletes the `.spa`. That's how `apply.sh` tells a patched client from a fresh one.
+- **`spotify-launcher` has no config option to skip updates**, so the version pin only works through the wrapper and the desktop entry. The path unit covers the case where you start it some other way.
+
+## Things that can't be fully turned off
+
+- **Canvas and video settings** live on your Spotify account. The CSS hides every video, but the client may still download them unless you switch them off in Settings.
+- **Social settings** (sharing what you listen to, new release notifications) are also stored on the account. Friend Activity is only hidden.
+- **Offline sync** has no local switch. It just follows whichever playlists you've downloaded.
+- **Some animations are JavaScript**, like the little equalizer bars on the playing track. CSS can't stop those, but they only run while music is playing.
+- **The native client still sends some telemetry.** The UI-side logging is patched out where SpotX and Spicetify support it.
+- **Intel iGPU offload** wasn't possible on my machine. The HD 530 is disabled in firmware and Hyprland runs on the 3050 anyway, so software rendering is the next best thing.
+
+## Credits
+
+- [SpotX-Bash](https://github.com/SpotX-Official/SpotX-Bash), MIT licensed. A pinned copy is in `spotx/`.
+- [Spicetify](https://github.com/spicetify/cli)
