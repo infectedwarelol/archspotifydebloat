@@ -62,55 +62,29 @@ The raw numbers are in `results.jsonl`. `results-run1-corrupt-cache.jsonl` is a 
 
 ## Install
 
-The scripts expect the repo at `~/.local/share/spotify-debloat`.
+The scripts expect the repo at `~/.local/share/spotify-debloat`. Run `spotify-launcher` once and log in before installing.
 
 ```bash
 git clone https://gitlab.com/infectedware/archspotifydebloat.git ~/.local/share/spotify-debloat
+~/.local/share/spotify-debloat/install.sh
 ```
 
-Run `spotify-launcher` once, log in, then quit Spotify.
+`install.sh` does the following:
+- checks the requirements and makes sure you've logged in
+- closes Spotify cleanly
+- backs up the client, `state.json`, `~/.config/spotify` and `hyprland.lua` into `backup-<date>/`
+- installs Spicetify 2.45.3 to `~/.spicetify`
+- copies the configs from `config/` into place
+- adds the Hyprland rule
+- writes the prefs
+- patches the client
+- enables the systemd path unit
 
-Back up what's about to be touched. `revert.sh` reads the backup location from `backup-path`.
+It's safe to run again. The backup is only taken once, and it won't touch the Spicetify config or patch the client a second time.
 
-```bash
-cd ~/.local/share/spotify-debloat
-backup="$PWD/backup-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$backup" && chmod 700 "$backup"
-tar -C ~/.local/share/spotify-launcher -cf "$backup/spotify-launcher-install.tar" install state.json
-tar -C ~/.config -cf "$backup/config-spotify.tar" spotify
-cp ~/.config/hypr/hyprland.lua "$backup/"
-chmod 600 "$backup"/*
-echo "$backup" > backup-path
-```
+It stops instead of overwriting a `~/.config/spotify-launcher.conf` or `spotify-launcher.desktop` that you made yourself, so move those out of the way first.
 
-Install Spicetify and copy the configs into place:
-
-```bash
-mkdir -p ~/.spicetify
-curl -fsSL https://github.com/spicetify/cli/releases/download/v2.45.3/spicetify-2.45.3-linux-amd64.tar.gz | tar -xz -C ~/.spicetify
-mkdir -p ~/.config/spicetify/Themes/Lite ~/.config/systemd/user ~/.local/share/applications
-cp config/spicetify/config-xpui.ini ~/.config/spicetify/
-cp config/spicetify/Themes/Lite/user.css ~/.config/spicetify/Themes/Lite/
-cp config/spotify-launcher.conf ~/.config/
-cp config/systemd/user/spotify-debloat.* ~/.config/systemd/user/
-sed "s|/home/jules|$HOME|" config/applications/spotify-launcher.desktop > ~/.local/share/applications/spotify-launcher.desktop
-cat config/hypr/spotify-lite.lua >> ~/.config/hypr/hyprland.lua
-hyprctl reload
-```
-
-Fix `prefs_path` in `~/.config/spicetify/config-xpui.ini` if your home isn't `/home/jules`.
-
-Patch the client and turn on the auto re-patch:
-
-```bash
-./apply.sh full
-systemctl --user daemon-reload
-systemctl --user enable --now spotify-debloat.path
-```
-
-The prefs changes listed above are a few lines in `~/.config/spotify/prefs` and `~/.config/spotify/Users/<id>-user/prefs`. Make those edits with Spotify closed, because it rewrites the files when it quits.
-
-Last step, in the Spotify UI: go to Settings > Videos and Canvas and switch off Canvas, music videos and other videos. Those settings live on your account, not in a local file.
+One step can't be scripted. In Spotify, go to Settings > Videos and Canvas and switch off Canvas, music videos and other videos. Those settings live on your account, not in a local file.
 
 ## Usage
 
